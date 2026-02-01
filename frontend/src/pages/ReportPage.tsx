@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate, Link } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { SEO, PaperCard, ProgressIndicator } from "@/components";
+import { SEO, PaperCard, ProgressIndicator, DocLoader } from "@/components";
 import { useAllResults, usePipelineStatus } from "@/hooks";
 import type { ReportData } from "@/lib/types";
 
@@ -242,7 +242,7 @@ export default function ReportPage() {
         <SEO title="Loading..." noindex />
         <div className="flex justify-center items-center min-h-[400px]">
           <div className="text-center">
-            <div className="spinner mx-auto mb-4" />
+            <DocLoader size="lg" className="mx-auto mb-4" />
             <p className="text-gray-600 lowercase">loading report...</p>
           </div>
         </div>
@@ -294,7 +294,7 @@ export default function ReportPage() {
           <SEO title="Finalizing Report..." noindex />
           <div className="flex justify-center items-center min-h-[400px]">
             <div className="text-center">
-              <div className="spinner mx-auto mb-4" />
+              <DocLoader size="lg" className="mx-auto mb-4" />
               <p className="text-gray-600 lowercase">
                 finalizing report artifacts...
               </p>

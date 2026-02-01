@@ -20,6 +20,10 @@ param cosmosSqlDatabaseName = 'Jobs'
 
 param cosmosContainerName = 'jobs'
 
+// Avoid immutable container schema updates during routine redeploys (partition key cannot be changed).
+// Set to true only if you are creating the container from scratch and the partition key matches.
+param cosmosManageContainer = false
+
 // Exported from the live resource group.
 param cosmosIpRules = [
   {
@@ -72,4 +76,3 @@ param tags = {
   env: 'prod'
   managedBy: 'bicep'
 }
-

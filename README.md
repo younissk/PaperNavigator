@@ -1,6 +1,10 @@
 # PaperNavigator
 
-AI-powered academic literature discovery using snowball sampling, ELO ranking, and LLM-generated research reports.
+paper navigator helps you discover and analyze academic papers through intelligent search, ranking, and automated report generation.
+
+this was built mainly as a portfolio project and is completely free to use (as long as my azure credits last). if you have any feedback, please go to [this form](https://forms.gle/Nu4sUUeWMSJmCYR28).
+
+if you're interested in working with me, you can reach out via [my website](https://younissk.github.io).
 
 ## Overview
 

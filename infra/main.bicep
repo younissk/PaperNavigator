@@ -27,6 +27,9 @@ param cosmosSqlDatabaseName string
 @description('Cosmos DB SQL container name.')
 param cosmosContainerName string
 
+@description('Whether to manage (create/update) the Cosmos SQL container via Bicep. Set to false to treat it as existing (avoids immutable schema update failures such as partition key changes).')
+param cosmosManageContainer bool = true
+
 @description('Cosmos DB IP rules allowed to access the account.')
 param cosmosIpRules array = []
 
@@ -77,6 +80,7 @@ module cosmos 'modules/cosmos.bicep' = {
     location: cosmosLocation
     sqlDatabaseName: cosmosSqlDatabaseName
     containerName: cosmosContainerName
+    manageContainer: cosmosManageContainer
     ipRules: cosmosIpRules
     tags: tags
   }
@@ -131,4 +135,3 @@ output functionAppNameOut string = functionAppName
 output cosmosAccountId string = cosmos.outputs.cosmosAccountId
 output serviceBusNamespaceId string = serviceBus.outputs.serviceBusNamespaceId
 output storageAccountId string = storage.outputs.storageAccountId
-

@@ -17,6 +17,8 @@ Prereqs:
 - Azure CLI logged in (`az login`)
 - Contributor access to resource group `PaperPilot`
 
+Note: Cosmos DB container partition keys are **immutable**. If the container already exists and the template tries to change the partition key (or other immutable schema), deployments will fail with errors like `Document collection partition key cannot be changed`.
+
 Deploy:
 
 ```bash

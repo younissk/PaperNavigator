@@ -1,38 +1,6 @@
 // Brutalist shadow styles
 const brutalShadow = { boxShadow: "3px 3px 0 #F3787A" };
 
-const FEATURES = [
-  {
-    title: "semantic search with snowball sampling",
-    description:
-      "discover relevant papers by iteratively expanding your search based on citations and references.",
-  },
-  {
-    title: "elo-based paper ranking",
-    description:
-      "ai-powered pairwise comparisons to rank papers by relevance to your research question.",
-  },
-  {
-    title: "citation graph visualization",
-    description:
-      "explore relationships between papers through interactive citation network graphs.",
-  },
-  {
-    title: "timeline analysis",
-    description: "visualize the evolution of research topics over time.",
-  },
-  {
-    title: "paper clustering",
-    description:
-      "automatically group papers by topic using advanced embedding techniques.",
-  },
-  {
-    title: "automated research reports",
-    description:
-      "generate comprehensive literature review reports with citations and insights.",
-  },
-];
-
 /**
  * About section for the home page - brutalist design.
  * Displays features and description of Paper Navigator.
@@ -45,7 +13,7 @@ export function AboutSection() {
           about paper navigator
         </h2>
         <p className="text-gray-600 text-center mb-8 lowercase">
-          ai-powered academic literature discovery and analysis
+          academic literature discovery and analysis
         </p>
 
         <div
@@ -54,27 +22,19 @@ export function AboutSection() {
         >
           <div className="space-y-4">
             <p className="text-gray-600 lowercase">
-              paper navigator helps researchers discover and analyze academic
-              papers through intelligent search, ranking, visualization, and
+              paper navigator helps you discover and analyze academic
+              papers through intelligent search, ranking, and
               automated report generation.
+              <br />
+              <br />
+
+              this was built mainly as a portfolio project and is completely free to use (as long as my azure credits last). if you have any feedback, please go to <a href="https://forms.gle/Nu4sUUeWMSJmCYR28" target="_blank" rel="noopener noreferrer">this form</a>.
+
+              <br />
+              <br />
+              if you're interested in working with me, you can reach out via <a href="https://younissk.github.io" target="_blank" rel="noopener noreferrer">my website</a>.
             </p>
 
-            <h3 className="text-xl font-bold text-black lowercase mt-6">
-              features
-            </h3>
-            <ul className="list-none p-0 m-0">
-              {FEATURES.map((feature) => (
-                <li
-                  key={feature.title}
-                  className="py-4 border-b border-black last:border-b-0"
-                >
-                  <strong className="text-black">{feature.title}</strong>
-                  <p className="text-gray-600 text-sm mt-1">
-                    {feature.description}
-                  </p>
-                </li>
-              ))}
-            </ul>
           </div>
         </div>
       </div>

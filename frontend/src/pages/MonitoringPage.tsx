@@ -1,4 +1,4 @@
-import { SEO } from "@/components";
+import { SEO, DocLoader } from "@/components";
 import {
   useHealthCheck,
   useMonitoringCosts,
@@ -177,7 +177,7 @@ export default function MonitoringPage() {
                 </h2>
                 {reports.isLoading ? (
                   <div className="flex items-center gap-2 text-gray-600 lowercase">
-                    <div className="spinner" />
+                    <DocLoader size="sm" />
                     <span>loading…</span>
                   </div>
                 ) : reports.error ? (
@@ -226,7 +226,7 @@ export default function MonitoringPage() {
                 </h2>
                 {pipelines.isLoading ? (
                   <div className="flex items-center gap-2 text-gray-600 lowercase">
-                    <div className="spinner" />
+                    <DocLoader size="sm" />
                     <span>loading…</span>
                   </div>
                 ) : pipelines.error ? (
@@ -285,7 +285,7 @@ export default function MonitoringPage() {
                 </h2>
                 {costs.isLoading ? (
                   <div className="flex items-center gap-2 text-gray-600 lowercase">
-                    <div className="spinner" />
+                    <DocLoader size="sm" />
                     <span>loading…</span>
                   </div>
                 ) : costs.error ? (

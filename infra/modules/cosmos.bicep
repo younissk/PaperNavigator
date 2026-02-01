@@ -10,6 +10,9 @@ param sqlDatabaseName string
 @description('Cosmos DB SQL container name.')
 param containerName string
 
+@description('Whether to manage (create/update) the SQL container via Bicep. Set to false to treat it as existing (avoids immutable schema update failures such as partition key changes).')
+param manageContainer bool = true
+
 @description('Partition key paths for the SQL container.')
 param partitionKeyPaths array = [
   '/jobId'
@@ -96,7 +99,7 @@ resource sqlDb 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2025-05-01-pr
   }
 }
 
-resource container 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-05-01-preview' = {
+resource container 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-05-01-preview' = if (manageContainer) {
   parent: sqlDb
   name: containerName
   properties: {
@@ -137,7 +140,11 @@ resource container 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/container
   }
 }
 
+resource existingContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-05-01-preview' existing = if (!manageContainer) {
+  parent: sqlDb
+  name: containerName
+}
+
 output cosmosAccountId string = account.id
 output cosmosSqlDatabaseId string = sqlDb.id
-output cosmosContainerId string = container.id
-
+output cosmosContainerId string = manageContainer ? container.id : existingContainer.id

@@ -19,3 +19,4 @@ export { MemoryGame } from "./MemoryGame";
 export { FlappyDocGame } from "./FlappyDocGame";
 export { GameLauncher } from "./GameLauncher";
 export { QueryCard, QueryCardSkeleton } from "./QueryCard";
+export { DocLoader } from "./DocLoader";
