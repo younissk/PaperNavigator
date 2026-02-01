@@ -5,9 +5,14 @@ const brutalShadow = { boxShadow: "3px 3px 0 #F3787A" };
 
 const HIGHLIGHTS = [
   {
+    title: "frontend",
+    description:
+      "react frontend with vite and tailwind css. why github pages? because azure cant get its shit together and they disallow it for european students... I already sent a ticket and am waiting for a response.",
+  },
+  {
     title: "serverless & scalable",
     description:
-      "azure functions and cosmos db scale automatically — pay only for what you use.",
+      "azure functions and cosmos db scale automatically. If nobody uses this projet, I wont pay anything for upkeep",
   },
   {
     title: "secure secrets management",
@@ -17,7 +22,7 @@ const HIGHLIGHTS = [
   {
     title: "infrastructure as code",
     description:
-      "all resources defined in bicep templates — PRs are the source of truth, not portal edits.",
+      "all resources defined in bicep templates. Really cool system tbh.",
   },
   {
     title: "async job processing",

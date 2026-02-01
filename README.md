@@ -10,35 +10,27 @@ if you're interested in working with me, you can reach out via [my website](http
 
 PaperNavigator helps researchers discover relevant academic papers by:
 
-1. **Snowball Sampling**: Starting from seed papers, it explores citations and references to find related work
-2. **LLM-Based Filtering**: Uses GPT to filter papers for relevance to your research query
-3. **ELO Ranking**: Compares papers head-to-head using LLM judgment to create a quality ranking
-4. **Report Generation**: Synthesizes findings into a structured research report
+1. **Query Profiling**: LLM creates a structured query profile from your research question
+
+![Query Profile](frontend/public/query_profile.png)
+
+2. **Query Augmentation**: LLM augments the query into multiple search queries for broader coverage
+
+![Query Augmentation](frontend/public/query_augmented.png)
+
+3. **Snowball Sampling**: Starting from seed papers, it explores citations and references to find related work
+
+![Snowball Search](frontend/public/snowball.png)
+
+4. **LLM-Based Filtering**: Uses GPT to filter papers for relevance to your research query
+5. **ELO Ranking**: Compares papers head-to-head using LLM judgment to create a quality ranking
+6. **Report Generation**: Synthesizes findings into a structured research report
 
 ## Architecture (Azure)
 
 PaperNavigator runs as a serverless backend on Azure:
 
-```
-┌────────────────────────────┐     ┌──────────────────────────┐     ┌──────────────────────────┐
-│  React/Vite Frontend       │────▶│  Azure Functions API     │────▶│  Azure Functions Worker  │
-│  (Static Web App)          │     │  (HTTP triggers)         │     │  (Service Bus trigger)   │
-└────────────────────────────┘     └──────────────────────────┘     └──────────────────────────┘
-                                        │            │                         │
-                                        │            │                         ▼
-                                        │            └───────────────┐  ┌──────────────────────┐
-                                        ▼                            └▶│  Azure Service Bus   │
-                               ┌──────────────────────┐                │  (Job queue)         │
-                               │  Azure Cosmos DB     │                └──────────────────────┘
-                               │  (Job state/events)  │
-                               └──────────────────────┘
-                                        │
-                                        ▼
-                               ┌──────────────────────┐
-                               │  Azure Blob Storage  │
-                               │  (Artifacts/results) │
-                               └──────────────────────┘
-```
+![Infrastructure](frontend/public/infra.png)
 
 ### Components
 
