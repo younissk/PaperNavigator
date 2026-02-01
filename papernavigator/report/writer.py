@@ -13,6 +13,7 @@ from collections.abc import Callable
 from openai import AsyncOpenAI
 
 from papernavigator.logging import get_logger
+from papernavigator.openai_usage import OpenAIInsufficientFundsError, record_openai_response, raise_if_openai_insufficient_funds
 from papernavigator.report.models import PaperCard, SectionPlan, WrittenSection
 
 log = get_logger(__name__)
@@ -207,6 +208,7 @@ async def write_section(
             timeout=OPENAI_TIMEOUT_SECONDS
         )
 
+        record_openai_response(response, model="gpt-4o-mini")
         content = response.choices[0].message.content.strip()
         log.info(
             "openai_request_complete",
@@ -260,7 +262,10 @@ async def write_section(
             content=f"Section generation timed out after {OPENAI_TIMEOUT_SECONDS}s.",
             paper_ids_used=[]
         )
+    except OpenAIInsufficientFundsError:
+        raise
     except Exception as e:
+        raise_if_openai_insufficient_funds(e)
         log.error("section_writing_failed", section=section.title, error=str(e))
         log.info(
             "openai_request_failed",
@@ -333,6 +338,7 @@ Return ONLY the rewritten text with citations. Do not include any explanation.""
             timeout=OPENAI_TIMEOUT_SECONDS
         )
 
+        record_openai_response(response, model="gpt-4o-mini")
         content = response.choices[0].message.content.strip()
         log.info(
             "openai_request_complete",
@@ -367,7 +373,10 @@ Return ONLY the rewritten text with citations. Do not include any explanation.""
             duration_sec=round(time.monotonic() - start_time, 2),
         )
         return section  # Return original if rewrite times out
+    except OpenAIInsufficientFundsError:
+        raise
     except Exception as e:
+        raise_if_openai_insufficient_funds(e)
         log.error("rewrite_failed", section=section.title, error=str(e))
         log.info(
             "openai_request_failed",
@@ -493,6 +502,9 @@ async def write_all_sections(
                         ),
                     )
             except Exception as exc:
+                if isinstance(exc, OpenAIInsufficientFundsError):
+                    raise
+                raise_if_openai_insufficient_funds(exc)
                 log.error(
                     "section_write_failed",
                     section=section.title,
@@ -609,6 +621,7 @@ Write concise, academic prose. Return only the introduction text."""
             timeout=OPENAI_TIMEOUT_SECONDS
         )
 
+        record_openai_response(response, model="gpt-4o-mini")
         content = response.choices[0].message.content.strip()
         log.info(
             "openai_request_complete",
@@ -631,7 +644,10 @@ Write concise, academic prose. Return only the introduction text."""
             duration_sec=round(time.monotonic() - start_time, 2),
         )
         return f"This report surveys research on: {query}"
+    except OpenAIInsufficientFundsError:
+        raise
     except Exception as e:
+        raise_if_openai_insufficient_funds(e)
         log.error("introduction_failed", error=str(e))
         log.info(
             "openai_request_failed",
@@ -702,6 +718,7 @@ Write academic prose. Return only the conclusion text (no citations needed in co
             timeout=OPENAI_TIMEOUT_SECONDS
         )
 
+        record_openai_response(response, model="gpt-4o-mini")
         content = response.choices[0].message.content.strip()
         log.info(
             "openai_request_complete",
@@ -724,7 +741,10 @@ Write academic prose. Return only the conclusion text (no citations needed in co
             duration_sec=round(time.monotonic() - start_time, 2),
         )
         return f"This survey covered research on {query}. Further investigation is warranted."
+    except OpenAIInsufficientFundsError:
+        raise
     except Exception as e:
+        raise_if_openai_insufficient_funds(e)
         log.error("conclusion_failed", error=str(e))
         log.info(
             "openai_request_failed",

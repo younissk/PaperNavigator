@@ -18,6 +18,7 @@ from papernavigator.models import (
     ReducedArxivEntry,
     SnowballCandidate,
 )
+from papernavigator.openai_usage import OpenAIInsufficientFundsError, record_openai_response, raise_if_openai_insufficient_funds
 
 # Async OpenAI client
 async_client = AsyncOpenAI(
@@ -170,6 +171,7 @@ Paper summary: {result.summary}
                 timeout=OPENAI_TIMEOUT_SECONDS
             )
 
+        record_openai_response(response, model="gpt-4o-mini")
         content = response.choices[0].message.content.strip()
         data = json.loads(content)
         return bool(data.get("relevant", False))
@@ -177,7 +179,10 @@ Paper summary: {result.summary}
     except asyncio.TimeoutError:
         # Timeout - bias toward recall so the pipeline doesn't collapse to 0 papers.
         return True
-    except Exception:
+    except OpenAIInsufficientFundsError:
+        raise
+    except Exception as exc:
+        raise_if_openai_insufficient_funds(exc)
         # API/parsing failure - bias toward recall so we still have seeds.
         return True
 
@@ -298,6 +303,7 @@ Discovery context: {parent_context or "Discovered through citation graph expansi
                 timeout=OPENAI_TIMEOUT_SECONDS
             )
 
+        record_openai_response(response, model="gpt-4o-mini")
         content = response.choices[0].message.content.strip()
         data = json.loads(content)
 
@@ -314,7 +320,10 @@ Discovery context: {parent_context or "Discovered through citation graph expansi
             confidence=0.0,
             reason="Judgment timed out"
         )
+    except OpenAIInsufficientFundsError:
+        raise
     except Exception as e:
+        raise_if_openai_insufficient_funds(e)
         # Fallback for parsing errors or API issues
         return JudgmentResult(
             relevant=False,

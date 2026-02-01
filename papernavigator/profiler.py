@@ -12,6 +12,7 @@ import re
 from openai import AsyncOpenAI
 
 from papernavigator.models import QueryProfile
+from papernavigator.openai_usage import record_openai_response, raise_if_openai_insufficient_funds
 
 # Timeout for OpenAI API calls (seconds)
 OPENAI_TIMEOUT_SECONDS = 30
@@ -82,15 +83,21 @@ Research topic query: {query}
 """
 
     # Wrap API call with timeout to prevent indefinite hangs
-    response = await asyncio.wait_for(
-        async_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0,
-            response_format={"type": "json_object"}
-        ),
-        timeout=OPENAI_TIMEOUT_SECONDS
-    )
+    try:
+        response = await asyncio.wait_for(
+            async_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,
+                response_format={"type": "json_object"},
+            ),
+            timeout=OPENAI_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:
+        raise_if_openai_insufficient_funds(exc)
+        raise
+
+    record_openai_response(response, model="gpt-4o-mini")
 
     content = response.choices[0].message.content.strip()
     data = json.loads(content)

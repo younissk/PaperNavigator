@@ -19,6 +19,8 @@ from typing import Any, Literal
 import numpy as np
 from openai import OpenAI
 
+from papernavigator.openai_usage import record_openai_response, raise_if_openai_insufficient_funds
+
 # Feature availability flags
 _HAS_UMAP = False
 _HAS_HDBSCAN = False
@@ -123,10 +125,15 @@ class EmbeddingService:
         # Process in batches
         for i in range(0, len(texts), self.BATCH_SIZE):
             batch = texts[i:i + self.BATCH_SIZE]
-            response = self.client.embeddings.create(
-                model=self.MODEL,
-                input=batch,
-            )
+            try:
+                response = self.client.embeddings.create(
+                    model=self.MODEL,
+                    input=batch,
+                )
+            except Exception as exc:
+                raise_if_openai_insufficient_funds(exc)
+                raise
+            record_openai_response(response, model=self.MODEL)
             batch_embeddings = [item.embedding for item in response.data]
             all_embeddings.extend(batch_embeddings)
 

@@ -131,7 +131,29 @@ def test_openai_connection(*, timeout_sec: float = 5.0) -> tuple[bool, float | N
                 return True, (time.time() - start) * 1000.0, None
             return False, (time.time() - start) * 1000.0, f"OpenAI returned status {status}"
     except urllib.error.HTTPError as exc:
-        return False, (time.time() - start) * 1000.0, f"OpenAI HTTPError {exc.code}"
+        detail = None
+        try:
+            raw = exc.read()
+            if raw:
+                try:
+                    payload = json.loads(raw.decode("utf-8", errors="replace"))
+                except Exception:
+                    payload = None
+                if isinstance(payload, dict):
+                    err = payload.get("error") if isinstance(payload.get("error"), dict) else payload
+                    msg = err.get("message") if isinstance(err, dict) else None
+                    code = err.get("code") if isinstance(err, dict) else None
+                    msg_s = str(msg).lower() if msg is not None else ""
+                    code_s = str(code).lower() if code is not None else ""
+                    if code_s in {"insufficient_quota", "billing_hard_limit_reached"} or "insufficient_quota" in msg_s:
+                        detail = "OpenAI quota/credits exhausted"
+                    elif msg:
+                        detail = str(msg)
+        except Exception:
+            detail = None
+
+        suffix = f": {detail}" if detail else ""
+        return False, (time.time() - start) * 1000.0, f"OpenAI HTTPError {exc.code}{suffix}"
     except Exception as exc:
         return False, (time.time() - start) * 1000.0, str(exc)
 
@@ -364,6 +386,7 @@ def update_job_progress(
     events: list[dict[str, Any]] | None = None,
     result: dict[str, Any] | None = None,
     error: str | None = None,
+    error_code: str | None = None,
 ) -> None:
     updates: dict[str, Any] = {
         "status": status,
@@ -384,6 +407,8 @@ def update_job_progress(
         updates["result"] = result
     if error is not None:
         updates["error_message"] = error
+    if error_code is not None:
+        updates["error_code"] = error_code
 
     updated = update_job_document(job_id, updates)
     if updated is None:

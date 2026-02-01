@@ -183,12 +183,37 @@ def get_costs_metrics(req: func.HttpRequest) -> dict[str, Any]:
     cutoff_epoch = int((_now_utc() - timedelta(days=window_days)).timestamp())
     jobs = _completed_pipeline_jobs_since(cutoff_epoch, limit=limit)
 
+    def _as_int(v: Any) -> int:
+        try:
+            n = int(v)
+        except Exception:
+            return 0
+        return max(0, n)
+
+    def _as_float(v: Any) -> float | None:
+        if v is None:
+            return None
+        if isinstance(v, bool):
+            return None
+        if isinstance(v, (int, float)):
+            return float(v)
+        try:
+            return float(v)
+        except Exception:
+            return None
+
     total_bytes = 0
     total_artifacts = 0
     bytes_samples = 0
     artifacts_samples = 0
 
     durations: list[float] = []
+
+    openai_pipelines_with_usage = 0
+    openai_pipelines_with_priced_cost = 0
+    openai_total_tokens = 0
+    openai_total_cost_usd: float = 0.0
+    openai_by_model: dict[str, dict[str, Any]] = {}
 
     for job in jobs:
         created_at = _parse_iso(job.get("created_at"))
@@ -215,12 +240,66 @@ def get_costs_metrics(req: func.HttpRequest) -> dict[str, Any]:
                 total_bytes += artifact_bytes_total
                 bytes_samples += 1
 
+            usage = result.get("openai_usage")
+            if isinstance(usage, dict):
+                totals = usage.get("totals") if isinstance(usage.get("totals"), dict) else {}
+                total_tokens = _as_int(totals.get("total_tokens"))
+                if total_tokens > 0:
+                    openai_pipelines_with_usage += 1
+                    openai_total_tokens += total_tokens
+
+                cost = _as_float(totals.get("estimated_cost_usd"))
+                if cost is not None and total_tokens > 0:
+                    openai_pipelines_with_priced_cost += 1
+                    openai_total_cost_usd += float(cost)
+
+                by_model = usage.get("by_model") if isinstance(usage.get("by_model"), dict) else {}
+                for model, mvals in by_model.items():
+                    if not isinstance(model, str) or not isinstance(mvals, dict):
+                        continue
+                    bucket = openai_by_model.setdefault(
+                        model,
+                        {
+                            "requests": 0,
+                            "prompt_tokens": 0,
+                            "completion_tokens": 0,
+                            "total_tokens": 0,
+                            "estimated_cost_usd": 0.0,
+                            "has_unpriced": False,
+                        },
+                    )
+                    bucket["requests"] += _as_int(mvals.get("requests"))
+                    bucket["prompt_tokens"] += _as_int(mvals.get("prompt_tokens"))
+                    bucket["completion_tokens"] += _as_int(mvals.get("completion_tokens"))
+                    bucket["total_tokens"] += _as_int(mvals.get("total_tokens"))
+                    mc = _as_float(mvals.get("estimated_cost_usd"))
+                    if mc is None:
+                        bucket["has_unpriced"] = True
+                    else:
+                        bucket["estimated_cost_usd"] = float(bucket["estimated_cost_usd"]) + float(mc)
+
     durations_sorted = sorted(durations)
     avg_duration = (sum(durations_sorted) / len(durations_sorted)) if durations_sorted else None
 
     pipelines = len(jobs)
     avg_bytes = (total_bytes / bytes_samples) if bytes_samples else None
     avg_artifacts = (total_artifacts / artifacts_samples) if artifacts_samples else None
+    avg_openai_tokens = (openai_total_tokens / openai_pipelines_with_usage) if openai_pipelines_with_usage else None
+    avg_openai_cost = (openai_total_cost_usd / openai_pipelines_with_priced_cost) if openai_pipelines_with_priced_cost else None
+
+    openai_by_model_out: dict[str, Any] = {}
+    for model, vals in sorted(openai_by_model.items()):
+        if vals.get("has_unpriced"):
+            cost_val: float | None = None
+        else:
+            cost_val = float(vals.get("estimated_cost_usd", 0.0))
+        openai_by_model_out[model] = {
+            "requests": vals.get("requests", 0),
+            "prompt_tokens": vals.get("prompt_tokens", 0),
+            "completion_tokens": vals.get("completion_tokens", 0),
+            "total_tokens": vals.get("total_tokens", 0),
+            "estimated_cost_usd": cost_val,
+        }
 
     return {
         "window_days": window_days,
@@ -239,9 +318,18 @@ def get_costs_metrics(req: func.HttpRequest) -> dict[str, Any]:
                 "duration_samples": len(durations_sorted),
             },
         },
+        "openai": {
+            "estimated_cost_usd_total": openai_total_cost_usd if openai_pipelines_with_priced_cost else None,
+            "avg_estimated_cost_usd_per_pipeline": avg_openai_cost,
+            "total_tokens_total": openai_total_tokens,
+            "avg_total_tokens_per_pipeline": avg_openai_tokens,
+            "pipelines_with_usage": openai_pipelines_with_usage,
+            "pipelines_with_priced_cost": openai_pipelines_with_priced_cost,
+            "by_model": openai_by_model_out,
+        },
         "notes": [
-            "OpenAI/LLM costs excluded by design (to be added later).",
+            "OpenAI costs are estimates derived from token usage, not billing statements.",
+            "Default pricing assumptions can be overridden with OPENAI_PRICING_JSON.",
             "Bytes/artifact metrics depend on job result fields; older jobs may not include them.",
         ],
     }
-

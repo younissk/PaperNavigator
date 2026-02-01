@@ -46,6 +46,34 @@ function formatNumber(value: number | null | undefined, decimals = 2): string {
   return value.toFixed(decimals);
 }
 
+function formatUsd(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "—";
+  }
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 4,
+    }).format(value);
+  } catch {
+    return `$${value.toFixed(4)}`;
+  }
+}
+
+function formatInt(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "—";
+  }
+  try {
+    return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(
+      Math.round(value),
+    );
+  } catch {
+    return String(Math.round(value));
+  }
+}
+
 type MonitorState = "ok" | "degraded" | "down";
 
 function EcgPulse({ state }: { state: MonitorState }) {
@@ -298,6 +326,30 @@ export default function MonitoringPage() {
                   <>
                     <div className="stack stack-sm">
                       <div className="flex justify-between text-sm">
+                        <span className="text-gray-600 lowercase">openai est. cost (total)</span>
+                        <span className="font-medium text-black">
+                          {formatUsd(costs.data?.openai.estimated_cost_usd_total)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600 lowercase">openai est. cost / pipeline</span>
+                        <span className="font-medium text-black">
+                          {formatUsd(costs.data?.openai.avg_estimated_cost_usd_per_pipeline)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600 lowercase">openai tokens (total)</span>
+                        <span className="font-medium text-black">
+                          {formatInt(costs.data?.openai.total_tokens_total)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600 lowercase">avg openai tokens / pipeline</span>
+                        <span className="font-medium text-black">
+                          {formatInt(costs.data?.openai.avg_total_tokens_per_pipeline)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
                         <span className="text-gray-600 lowercase">bytes uploaded (total)</span>
                         <span className="font-medium text-black">
                           {formatBytes(costs.data?.cost_proxies.bytes_uploaded_total)}
@@ -325,7 +377,7 @@ export default function MonitoringPage() {
                       </div>
                     </div>
                     <p className="text-xs text-gray-600 mt-2 lowercase">
-                      openai/llm costs intentionally excluded for now.
+                      openai costs are estimated from token usage, not billing.
                     </p>
                   </>
                 )}

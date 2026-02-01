@@ -539,6 +539,7 @@ async def run_ranking_stage(job_id: str, payload: dict[str, Any], events: list[d
     from papernavigator.elo_ranker import EloRanker, RankerConfig
     from papernavigator.events import NullEventHandler
     from papernavigator.models import SnowballCandidate
+    from papernavigator.openai_usage import OpenAIInsufficientFundsError, get_openai_usage_snapshot, start_openai_usage_tracking
     from papernavigator.profiler import generate_query_profile
     from papernavigator.report.generator import load_papers_from_file
 
@@ -555,6 +556,8 @@ async def run_ranking_stage(job_id: str, payload: dict[str, Any], events: list[d
     results_dir.mkdir(parents=True, exist_ok=True)
 
     try:
+        start_openai_usage_tracking()
+
         existing_job = get_job(job_id) or {}
         result_state: dict[str, Any] = {}
         if isinstance(existing_job.get("result"), dict):
@@ -724,6 +727,11 @@ async def run_ranking_stage(job_id: str, payload: dict[str, Any], events: list[d
             "ranking",
             f"Ranking complete: {len(ranker.match_history)} matches played",
         )
+        artifact_bytes_total = sum(
+            a.get("size", 0) for a in artifacts if isinstance(a, dict) and isinstance(a.get("size"), int)
+        )
+        phase_durations_sec = _phase_durations_from_events(events)
+        openai_usage = get_openai_usage_snapshot()
         result_state.update({
             "papers_ranked": len(ranked_candidates),
             "matches_played": len(ranker.match_history),
@@ -737,6 +745,13 @@ async def run_ranking_stage(job_id: str, payload: dict[str, Any], events: list[d
                 }
                 for c in ranked_candidates[:5]
             ],
+            "results_container": RESULTS_CONTAINER,
+            "results_prefix": blob_prefix,
+            "artifacts": [a["name"] for a in artifacts],
+            "artifact_count": len(artifacts),
+            "artifact_bytes_total": artifact_bytes_total,
+            "phase_durations_sec": phase_durations_sec,
+            "openai_usage": openai_usage,
         })
         update_job_progress(
             job_id,
@@ -755,7 +770,34 @@ async def run_ranking_stage(job_id: str, payload: dict[str, Any], events: list[d
             "papers_ranked": len(ranked_candidates),
             "matches_played": len(ranker.match_history),
             "artifacts": [a["name"] for a in artifacts],
+            "artifact_count": len(artifacts),
+            "artifact_bytes_total": artifact_bytes_total,
+            "phase_durations_sec": phase_durations_sec,
+            "openai_usage": openai_usage,
         }
+    except Exception as exc:
+        openai_usage = get_openai_usage_snapshot()
+        error_code = OpenAIInsufficientFundsError.error_code if isinstance(exc, OpenAIInsufficientFundsError) else None
+        events = append_event(
+            events,
+            "phase_error",
+            "ranking",
+            f"Ranking stage failed: {exc}",
+            level="error",
+            error=str(exc),
+        )
+        update_job_progress(
+            job_id,
+            "failed",
+            "ranking",
+            0,
+            f"Ranking failed: {exc}",
+            events=events,
+            result={"openai_usage": openai_usage},
+            error=str(exc),
+            error_code=error_code,
+        )
+        raise
     finally:
         try:
             shutil.rmtree(workspace)
@@ -766,6 +808,7 @@ async def run_ranking_stage(job_id: str, payload: dict[str, Any], events: list[d
 async def run_report_stage(job_id: str, payload: dict[str, Any], events: list[dict[str, Any]]) -> dict[str, Any]:
     """Run only the report stage using existing search+ranking artifacts."""
     from papernavigator.report.generator import generate_report, report_to_dict, final_citation_check
+    from papernavigator.openai_usage import OpenAIInsufficientFundsError, get_openai_usage_snapshot, start_openai_usage_tracking
 
     query = payload.get("query", "")
     report_top_k = payload.get("report_top_k", 30)
@@ -776,6 +819,8 @@ async def run_report_stage(job_id: str, payload: dict[str, Any], events: list[di
     results_dir.mkdir(parents=True, exist_ok=True)
 
     try:
+        start_openai_usage_tracking()
+
         metadata_blob = results_path(query_slug, job_id, "metadata.json")
         metadata = get_blob_json(metadata_blob) or {}
         if metadata.get("snowball_count", None) == 0:
@@ -870,11 +915,45 @@ async def run_report_stage(job_id: str, payload: dict[str, Any], events: list[di
 
         blob_prefix = results_path(query_slug, job_id)
         artifacts = upload_artifacts_to_blob(results_dir, blob_prefix)
+        artifact_bytes_total = sum(
+            a.get("size", 0) for a in artifacts if isinstance(a, dict) and isinstance(a.get("size"), int)
+        )
+        phase_durations_sec = _phase_durations_from_events(events)
+        openai_usage = get_openai_usage_snapshot()
 
         return {
             "report_sections": len(report.current_research),
             "artifacts": [a["name"] for a in artifacts],
+            "artifact_count": len(artifacts),
+            "artifact_bytes_total": artifact_bytes_total,
+            "phase_durations_sec": phase_durations_sec,
+            "results_container": RESULTS_CONTAINER,
+            "results_prefix": blob_prefix,
+            "openai_usage": openai_usage,
         }
+    except Exception as exc:
+        openai_usage = get_openai_usage_snapshot()
+        error_code = OpenAIInsufficientFundsError.error_code if isinstance(exc, OpenAIInsufficientFundsError) else None
+        events = append_event(
+            events,
+            "phase_error",
+            "report",
+            f"Report stage failed: {exc}",
+            level="error",
+            error=str(exc),
+        )
+        update_job_progress(
+            job_id,
+            "failed",
+            "report",
+            0,
+            f"Report failed: {exc}",
+            events=events,
+            result={"openai_usage": openai_usage},
+            error=str(exc),
+            error_code=error_code,
+        )
+        raise
     finally:
         try:
             shutil.rmtree(workspace)
@@ -884,6 +963,7 @@ async def run_report_stage(job_id: str, payload: dict[str, Any], events: list[di
 
 async def run_search_job(job_id: str, payload: dict[str, Any], events: list[dict[str, Any]]) -> dict[str, Any]:
     from papernavigator.service import export_results, run_search
+    from papernavigator.openai_usage import OpenAIInsufficientFundsError, get_openai_usage_snapshot, start_openai_usage_tracking
 
     query = payload.get("query", "")
     num_results = payload.get("num_results", 15)
@@ -897,6 +977,8 @@ async def run_search_job(job_id: str, payload: dict[str, Any], events: list[dict
     results_dir.mkdir(parents=True, exist_ok=True)
 
     try:
+        start_openai_usage_tracking()
+
         events = append_event(events, "phase_start", "search", "Starting search phase")
         update_job_progress(job_id, "running", "search", 0, "Starting search...", events=events)
 
@@ -929,6 +1011,8 @@ async def run_search_job(job_id: str, payload: dict[str, Any], events: list[dict
             )
         except Exception as exc:
             logger.exception("Search-only job failed for job %s", job_id)
+            openai_usage = get_openai_usage_snapshot()
+            error_code = OpenAIInsufficientFundsError.error_code if isinstance(exc, OpenAIInsufficientFundsError) else None
             events = append_event(
                 events,
                 "phase_error",
@@ -944,7 +1028,9 @@ async def run_search_job(job_id: str, payload: dict[str, Any], events: list[dict
                 0,
                 f"Search failed: {exc}",
                 events=events,
+                result={"openai_usage": openai_usage},
                 error=str(exc),
+                error_code=error_code,
             )
             raise
 
@@ -985,6 +1071,7 @@ async def run_search_job(job_id: str, payload: dict[str, Any], events: list[dict
             a.get("size", 0) for a in artifacts if isinstance(a, dict) and isinstance(a.get("size"), int)
         )
         phase_durations_sec = _phase_durations_from_events(events)
+        openai_usage = get_openai_usage_snapshot()
 
         return {
             "papers_found": len(accepted_papers),
@@ -994,6 +1081,7 @@ async def run_search_job(job_id: str, payload: dict[str, Any], events: list[dict
             "artifact_count": len(artifacts),
             "artifact_bytes_total": artifact_bytes_total,
             "phase_durations_sec": phase_durations_sec,
+            "openai_usage": openai_usage,
         }
 
     finally:

@@ -241,6 +241,7 @@ def get_job_status(req: func.HttpRequest) -> func.HttpResponse:
             "progress": job.get("progress"),
             "result": job.get("result"),
             "error_message": job.get("error_message"),
+            "error_code": job.get("error_code"),
         }
 
         if include_events:
@@ -339,6 +340,7 @@ def get_pipeline_status(req: func.HttpRequest) -> func.HttpResponse:
             "papers": (job.get("result") or {}).get("top_papers"),
             "report_data": None,
             "error": job.get("error_message"),
+            "error_code": job.get("error_code"),
             "events": recent_events,
             "alerts": alerts,
         })

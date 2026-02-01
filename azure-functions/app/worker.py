@@ -166,6 +166,29 @@ def process_job(job_id: str, job_type: str, payload: dict[str, Any]) -> tuple[di
     load_openai_api_key()
 
     if job_type == "pipeline":
+        from papernavigator.openai_usage import merge_openai_usage
+
+        def _merge_results(existing: dict[str, Any] | None, update: dict[str, Any] | None) -> dict[str, Any]:
+            base: dict[str, Any] = dict(existing) if isinstance(existing, dict) else {}
+            upd: dict[str, Any] = dict(update) if isinstance(update, dict) else {}
+
+            for key, value in upd.items():
+                if key == "openai_usage":
+                    base["openai_usage"] = merge_openai_usage(base.get("openai_usage"), value)
+                    continue
+                if key == "artifacts":
+                    existing_list = base.get("artifacts")
+                    ex = existing_list if isinstance(existing_list, list) else []
+                    nv = value if isinstance(value, list) else []
+                    base["artifacts"] = list(dict.fromkeys([*ex, *nv]))
+                    continue
+                if isinstance(base.get(key), dict) and isinstance(value, dict):
+                    base[key] = {**base[key], **value}
+                    continue
+                base[key] = value
+
+            return base
+
         stage = payload.get("stage") or "search"
         if stage == "search":
             result = asyncio.run(run_search_job(job_id, payload, events))
@@ -192,6 +215,7 @@ def process_job(job_id: str, job_type: str, payload: dict[str, Any]) -> tuple[di
             next_payload = dict(payload)
             next_payload["stage"] = "ranking"
             refreshed = get_job(job_id)
+            merged_result = _merge_results((refreshed or {}).get("result"), result)
             current_events = (refreshed or {}).get("events", []) or events
             current_events = append_event(
                 current_events,
@@ -209,15 +233,17 @@ def process_job(job_id: str, job_type: str, payload: dict[str, Any]) -> tuple[di
                 "Queued ranking stage",
                 step_name="Queued",
                 events=current_events,
+                result=merged_result,
             )
             # Enqueue next stage after updating progress to avoid races with the next message.
             enqueue_job(job_id, "pipeline", next_payload)
-            return result, current_events, True, False
+            return merged_result, current_events, True, False
         if stage == "ranking":
             result = asyncio.run(run_ranking_stage(job_id, payload, events))
             next_payload = dict(payload)
             next_payload["stage"] = "report"
             refreshed = get_job(job_id)
+            merged_result = _merge_results((refreshed or {}).get("result"), result)
             current_events = (refreshed or {}).get("events", []) or events
             current_events = append_event(
                 current_events,
@@ -235,13 +261,16 @@ def process_job(job_id: str, job_type: str, payload: dict[str, Any]) -> tuple[di
                 "Queued report stage",
                 step_name="Queued",
                 events=current_events,
+                result=merged_result,
             )
             # Enqueue next stage after updating progress to avoid races with the next message.
             enqueue_job(job_id, "pipeline", next_payload)
-            return result, current_events, True, False
+            return merged_result, current_events, True, False
         if stage == "report":
             result = asyncio.run(run_report_stage(job_id, payload, events))
-            return result, events, True, True
+            refreshed = get_job(job_id)
+            merged_result = _merge_results((refreshed or {}).get("result"), result)
+            return merged_result, events, True, True
         raise ValueError(f"Unknown pipeline stage: {stage}")
     if job_type == "search":
         result = asyncio.run(run_search_job(job_id, payload, events))
@@ -317,6 +346,12 @@ def process_job_message(msg: func.ServiceBusMessage):
             existing_job = get_job(job_id)
             existing_events = existing_job.get("events", []) if existing_job else []
 
+            try:
+                from papernavigator.openai_usage import OpenAIInsufficientFundsError
+                error_code = OpenAIInsufficientFundsError.error_code if isinstance(exc, OpenAIInsufficientFundsError) else None
+            except Exception:
+                error_code = None
+
             events = append_event(
                 existing_events,
                 "job_failed",
@@ -331,6 +366,7 @@ def process_job_message(msg: func.ServiceBusMessage):
                 f"Job failed: {exc}",
                 events=events,
                 error=str(exc),
+                error_code=error_code,
             )
 
             # Send failure email notification if requested

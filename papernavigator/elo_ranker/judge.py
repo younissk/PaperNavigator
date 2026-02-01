@@ -10,6 +10,7 @@ from openai import AsyncOpenAI
 from papernavigator.logging import get_logger
 from papernavigator.elo_ranker.models import MatchResult
 from papernavigator.models import QueryProfile, SnowballCandidate
+from papernavigator.openai_usage import OpenAIInsufficientFundsError, record_openai_response, raise_if_openai_insufficient_funds
 
 # Timeout for OpenAI API calls (seconds)
 OPENAI_TIMEOUT_SECONDS = int(os.getenv("OPENAI_TIMEOUT_SECONDS", "30"))
@@ -94,6 +95,7 @@ Return JSON only: {{"winner":1|2|0, "reason":"max 20 words"}}"""
             timeout=OPENAI_TIMEOUT_SECONDS
         )
 
+        record_openai_response(response, model="gpt-4o-mini")
         content = response.choices[0].message.content.strip()
         data = json.loads(content)
         log.info(
@@ -126,6 +128,8 @@ Return JSON only: {{"winner":1|2|0, "reason":"max 20 words"}}"""
         )
         # On timeout, treat as draw to avoid blocking the pipeline
         return None, "Timeout"
+    except OpenAIInsufficientFundsError:
+        raise
     except (json.JSONDecodeError, KeyError, AttributeError):
         log.info(
             "openai_request_failed",
@@ -135,7 +139,8 @@ Return JSON only: {{"winner":1|2|0, "reason":"max 20 words"}}"""
         )
         # On error, treat as draw to avoid skewing ratings
         return None, "Parse error"
-    except Exception:
+    except Exception as exc:
+        raise_if_openai_insufficient_funds(exc)
         log.info(
             "openai_request_failed",
             operation="ranker_judge_match",

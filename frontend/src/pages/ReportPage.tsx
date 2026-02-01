@@ -263,20 +263,42 @@ export default function ReportPage() {
 
   // Generating state (has job, polling)
   if (!reportData && jobId && pipelineStatus) {
-    // Check for pipeline failure
-    if (pipelineStatus.status === "failed") {
-      const events = pipelineStatus.events ?? [];
-      const recentEvents = events.slice(-15); // Show more events for debugging
-
-      return (
-        <>
-          <SEO title="Generation Failed" noindex />
-          <div className="container container-lg py-12 px-4">
-            <div className="max-w-2xl mx-auto">
-              <div className="p-4 border-2 border-black border-l-4 border-l-red-500 bg-white" style={brutalShadow}>
-                <strong className="lowercase">report generation failed:</strong>{" "}
-                {pipelineStatus.error || "unknown error"}
-              </div>
+	    // Check for pipeline failure
+	    if (pipelineStatus.status === "failed") {
+	      const events = pipelineStatus.events ?? [];
+	      const recentEvents = events.slice(-15); // Show more events for debugging
+	      const isOutOfFunds =
+	        pipelineStatus.error_code === "openai_insufficient_quota";
+	
+	      return (
+	        <>
+	          <SEO title="Generation Failed" noindex />
+	          <div className="container container-lg py-12 px-4">
+	            <div className="max-w-2xl mx-auto">
+	              {isOutOfFunds && (
+	                <div
+	                  className="p-4 border-2 border-black border-l-4 border-l-red-500 bg-white mb-4"
+	                  style={brutalShadow}
+	                >
+	                  <strong className="lowercase">openai credits exhausted</strong>
+	                  <p className="text-sm text-gray-700 mt-2 lowercase">
+	                    this job failed because the configured openai account has
+	                    no remaining quota/credits.
+	                  </p>
+	                  <ul className="text-sm text-gray-700 mt-3 list-disc ml-5 lowercase">
+	                    <li>add billing / increase your spend limit in openai</li>
+	                    <li>
+	                      confirm the server is using the right{" "}
+	                      <code className="font-mono">OPENAI_API_KEY</code>
+	                    </li>
+	                    <li>retry once credits are available</li>
+	                  </ul>
+	                </div>
+	              )}
+	              <div className="p-4 border-2 border-black border-l-4 border-l-red-500 bg-white" style={brutalShadow}>
+	                <strong className="lowercase">report generation failed:</strong>{" "}
+	                {pipelineStatus.error || "unknown error"}
+	              </div>
 
               {pipelineStatus.alerts && pipelineStatus.alerts.length > 0 && (
                 <div className="stack stack-sm mt-4">

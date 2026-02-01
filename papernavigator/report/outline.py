@@ -13,6 +13,7 @@ from collections import defaultdict
 from openai import AsyncOpenAI
 
 from papernavigator.logging import get_logger
+from papernavigator.openai_usage import record_openai_response, raise_if_openai_insufficient_funds
 from papernavigator.report.models import PaperCard, ReportOutline, SectionPlan
 
 log = get_logger(__name__)
@@ -156,6 +157,7 @@ async def generate_outline(query: str, cards: list[PaperCard]) -> ReportOutline:
             timeout=OPENAI_TIMEOUT_SECONDS
         )
 
+        record_openai_response(response, model="gpt-4o-mini")
         content = response.choices[0].message.content.strip()
         log.info(
             "openai_request_complete",
@@ -215,6 +217,7 @@ async def generate_outline(query: str, cards: list[PaperCard]) -> ReportOutline:
             )
         ])
     except Exception as e:
+        raise_if_openai_insufficient_funds(e)
         log.error("outline_generation_failed", error=str(e))
         log.info(
             "openai_request_failed",

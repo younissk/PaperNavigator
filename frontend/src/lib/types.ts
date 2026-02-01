@@ -132,6 +132,7 @@ export interface PipelineResponse {
   papers?: LeaderboardEntry[];
   report_data?: ReportData | null;
   error?: string;
+  error_code?: string | null;
   events?: PipelineEvent[];
   alerts?: PipelineEvent[];
 }
@@ -204,6 +205,24 @@ export interface MonitoringCostsResponse {
       artifact_samples: number;
       duration_samples: number;
     };
+  };
+  openai: {
+    estimated_cost_usd_total: number | null;
+    avg_estimated_cost_usd_per_pipeline: number | null;
+    total_tokens_total: number;
+    avg_total_tokens_per_pipeline: number | null;
+    pipelines_with_usage: number;
+    pipelines_with_priced_cost: number;
+    by_model: Record<
+      string,
+      {
+        requests: number;
+        prompt_tokens: number;
+        completion_tokens: number;
+        total_tokens: number;
+        estimated_cost_usd: number | null;
+      }
+    >;
   };
   notes: string[];
 }

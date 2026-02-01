@@ -12,6 +12,8 @@ import time
 from openai import AsyncOpenAI
 from pydantic import TypeAdapter, ValidationError
 
+from papernavigator.openai_usage import record_openai_response, raise_if_openai_insufficient_funds
+
 # Timeout for OpenAI API calls (seconds)
 OPENAI_TIMEOUT_SECONDS = 30
 
@@ -90,7 +92,12 @@ async def augment_search(query: str, k: int = 6) -> tuple[list[str], float]:
     except asyncio.TimeoutError:
         # On timeout, return just the original query
         return [query], 0.0
+    except Exception as exc:
+        raise_if_openai_insufficient_funds(exc)
+        raise
     end_time = time.time()
+
+    record_openai_response(response, model="gpt-4o-mini")
 
     content = response.choices[0].message.content.strip()
 

@@ -26,6 +26,7 @@ AUDIT_SECTION_MAX_RETRIES = int(os.getenv("AUDIT_SECTION_MAX_RETRIES", "1"))
 AUDIT_CONCURRENCY = int(os.getenv("AUDIT_CONCURRENCY", "2"))
 
 from papernavigator.logging import get_logger
+from papernavigator.openai_usage import OpenAIInsufficientFundsError, record_openai_response, raise_if_openai_insufficient_funds
 from papernavigator.report.models import (
     AuditResult,
     PaperCard,
@@ -172,6 +173,7 @@ async def audit_section(
             timeout=OPENAI_TIMEOUT_SECONDS
         )
 
+        record_openai_response(response, model="gpt-4o-mini")
         content = response.choices[0].message.content.strip()
         log.info(
             "openai_request_complete",
@@ -266,7 +268,10 @@ async def audit_section(
             unsupported_count=0,
             revised_count=0
         )
+    except OpenAIInsufficientFundsError:
+        raise
     except Exception as e:
+        raise_if_openai_insufficient_funds(e)
         log.error("audit_failed", section=section.title, error=str(e))
         log.info(
             "openai_request_failed",
@@ -357,6 +362,9 @@ async def audit_all_sections(
                         ),
                     )
             except Exception as exc:
+                if isinstance(exc, OpenAIInsufficientFundsError):
+                    raise
+                raise_if_openai_insufficient_funds(exc)
                 log.error(
                     "audit_section_failed",
                     section=section.title,

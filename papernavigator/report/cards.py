@@ -14,6 +14,7 @@ from openai import AsyncOpenAI
 
 from papernavigator.async_utils import get_loop_semaphore, validate_loop
 from papernavigator.logging import get_logger
+from papernavigator.openai_usage import OpenAIInsufficientFundsError, record_openai_response, raise_if_openai_insufficient_funds
 from papernavigator.report.models import PaperCard
 
 log = get_logger(__name__)
@@ -109,6 +110,7 @@ async def generate_paper_card(paper: dict) -> PaperCard | None:
                 timeout=OPENAI_TIMEOUT_SECONDS
             )
 
+        record_openai_response(response, model="gpt-4o-mini")
         content = response.choices[0].message.content.strip()
         log.info(
             "openai_request_complete",
@@ -154,7 +156,10 @@ async def generate_paper_card(paper: dict) -> PaperCard | None:
             duration_sec=round(time.monotonic() - start_time, 2),
         )
         return None
+    except OpenAIInsufficientFundsError:
+        raise
     except Exception as e:
+        raise_if_openai_insufficient_funds(e)
         log.error("card_generation_failed", paper_id=paper_id, error=str(e))
         log.info(
             "openai_request_failed",
@@ -191,6 +196,10 @@ async def generate_paper_cards(
     # Process all papers concurrently
     tasks = [generate_paper_card(paper) for paper in papers]
     results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for result in results:
+        if isinstance(result, OpenAIInsufficientFundsError):
+            raise result
 
     # Filter successful results
     cards: list[PaperCard] = []
