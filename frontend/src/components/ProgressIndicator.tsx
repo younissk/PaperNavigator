@@ -201,7 +201,7 @@ function Leaderboard({ papers }: { papers: LeaderboardEntry[] }) {
                   </td>
                   <td className="px-3 py-2">
                     <span
-                      className="block truncate max-w-[200px] text-black cursor-default"
+                      className="block truncate max-w-[280px] sm:max-w-[320px] text-black cursor-default"
                       title={paper.title}
                     >
                       {paper.title}
@@ -227,40 +227,6 @@ function Leaderboard({ papers }: { papers: LeaderboardEntry[] }) {
             })}
           </tbody>
         </table>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Statistics display for the current pipeline run - brutalist style
- */
-function PipelineStats({
-  phase,
-  phaseProgress,
-  phaseTotal,
-}: {
-  phase: string;
-  phaseProgress?: number;
-  phaseTotal?: number;
-}) {
-  if (phase !== "ranking" || !phaseProgress || !phaseTotal) return null;
-
-  const matchesRemaining = phaseTotal - phaseProgress;
-  const percentComplete = Math.round((phaseProgress / phaseTotal) * 100);
-
-  return (
-    <div className="flex justify-center gap-4 mt-4 text-xs lowercase">
-      <div className="flex items-center gap-1 px-2 py-1 border border-black">
-        <span className="font-bold text-black">{phaseProgress}</span>
-        <span className="text-gray-600">done</span>
-      </div>
-      <div className="flex items-center gap-1 px-2 py-1 border border-black">
-        <span className="font-bold text-black">{matchesRemaining}</span>
-        <span className="text-gray-600">left</span>
-      </div>
-      <div className="flex items-center gap-1 px-2 py-1 border border-black">
-        <span className="font-bold text-black">{percentComplete}%</span>
       </div>
     </div>
   );
@@ -480,13 +446,6 @@ export function ProgressIndicator({
             ))}
           </div>
         )}
-
-        {/* Statistics */}
-        <PipelineStats
-          phase={phase}
-          phaseProgress={status.phase_progress}
-          phaseTotal={status.phase_total}
-        />
 
         {/* Leaderboard */}
         <Leaderboard papers={leaderboard} />
