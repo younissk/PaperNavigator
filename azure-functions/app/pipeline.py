@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import shutil
 import tempfile
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -295,7 +297,42 @@ async def run_pipeline(job_id: str, payload: dict[str, Any], events: list[dict[s
         try:
             profile = await generate_query_profile(query)
             ranker = EloRanker(profile, candidates, ranker_config, event_handler=ranking_handler)
-            ranked_candidates = await ranker.rank_candidates()
+            heartbeat_seconds = int(os.getenv("RANKING_HEARTBEAT_SECONDS", "20"))
+            heartbeat_seconds = max(5, min(120, heartbeat_seconds))
+
+            ranking_task = asyncio.create_task(ranker.rank_candidates())
+            last_heartbeat = time.monotonic()
+            while not ranking_task.done():
+                await asyncio.sleep(1)
+                if time.monotonic() - last_heartbeat < heartbeat_seconds:
+                    continue
+                current = int(result_state.get("matches_played") or 0)
+                msg = f"Ranking in progress... ({current} / {expected_matches})"
+                events = append_event(
+                    events,
+                    "progress",
+                    "ranking",
+                    msg,
+                    step=1,
+                    step_name="Ranking Papers",
+                    current=current,
+                    total=expected_matches,
+                )
+                update_job_progress(
+                    job_id,
+                    "running",
+                    "ranking",
+                    1,
+                    msg,
+                    current=current,
+                    total=expected_matches,
+                    step_name="Ranking Papers",
+                    events=events,
+                    result={**result_state},
+                )
+                last_heartbeat = time.monotonic()
+
+            ranked_candidates = await ranking_task
         except Exception as exc:
             logger.exception("Ranking phase failed for job %s", job_id)
             events = append_event(
@@ -680,7 +717,42 @@ async def run_ranking_stage(job_id: str, payload: dict[str, Any], events: list[d
             top_k=5,
         )
         ranker = EloRanker(profile, candidates, ranker_config, event_handler=ranking_handler)
-        ranked_candidates = await ranker.rank_candidates()
+        heartbeat_seconds = int(os.getenv("RANKING_HEARTBEAT_SECONDS", "20"))
+        heartbeat_seconds = max(5, min(120, heartbeat_seconds))
+
+        ranking_task = asyncio.create_task(ranker.rank_candidates())
+        last_heartbeat = time.monotonic()
+        while not ranking_task.done():
+            await asyncio.sleep(1)
+            if time.monotonic() - last_heartbeat < heartbeat_seconds:
+                continue
+            current = int(result_state.get("matches_played") or 0)
+            msg = f"Ranking in progress... ({current} / {expected_matches})"
+            events = append_event(
+                events,
+                "progress",
+                "ranking",
+                msg,
+                step=1,
+                step_name="Ranking Papers",
+                current=current,
+                total=expected_matches,
+            )
+            update_job_progress(
+                job_id,
+                "running",
+                "ranking",
+                1,
+                msg,
+                current=current,
+                total=expected_matches,
+                step_name="Ranking Papers",
+                events=events,
+                result={**result_state},
+            )
+            last_heartbeat = time.monotonic()
+
+        ranked_candidates = await ranking_task
 
         elo_path = results_dir / f"elo_ranked_k{int(k_factor)}_p{pairing}.json"
         elo_data = {
